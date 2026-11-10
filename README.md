@@ -24,7 +24,8 @@ prismv-data validate  --dataset DIR     # schema conformance + hard rules R1-R10
 prismv-data sample    --dataset DIR     # stratified human-audit plan
 prismv-data precision --dataset DIR     # measured pseudo-label accuracy + bootstrap CI
 
-# equivalent module form
+# equivalent module forms
+python -m prismv_data validate --dataset DIR
 python -m prismv_data.contract validate --dataset DIR
 ```
 

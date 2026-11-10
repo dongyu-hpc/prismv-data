@@ -1,6 +1,6 @@
 # prismv-data
 
-Dataset contract for [PRISM-V](https://example.invalid/prismv): schemas, hard validation
+Dataset contract for [PRISM-V](https://github.com/dongyu-hpc/PRISM-V.git): schemas, hard validation
 rules, stratified human-audit sampling, and measured pseudo-label precision.
 
 The question this package answers is narrow and specific: **is this dataset allowed to support

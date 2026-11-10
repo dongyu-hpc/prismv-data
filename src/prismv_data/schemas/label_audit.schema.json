@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prismv.dev/schemas/label_audit.schema.json",
+  "title": "PRISM-V LabelAudit (human verification ledger)",
+  "description": "One line per audited item. This ledger is the only independent evidence route C has: without it, 'ground truth' is one machine's opinion used to calibrate another's. It is also the source of gt_confidence, so the validator recomputes precision from here rather than trusting the dataset's own claim.",
+  "type": "object",
+  "required": ["schema_version", "item_id", "stratum", "pseudo_truth", "human_truths", "audit_status"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "item_id": { "type": "string", "minLength": 1 },
+    "scene_id": { "type": "string" },
+    "stratum": {
+      "type": "object",
+      "required": ["relation", "frame_kind", "margin_band"],
+      "additionalProperties": false,
+      "properties": {
+        "relation": { "type": "string" },
+        "frame_kind": { "type": "string", "enum": ["viewer", "allocentric", "unspecified"] },
+        "margin_band": { "type": "string", "enum": ["clear", "marginal", "near_threshold"] }
+      },
+      "description": "Pseudo-label precision depends strongly on margin. Precision must therefore be estimated per stratum; a pooled number over an ease-biased sample overstates quality."
+    },
+    "pseudo_truth": { "type": "string", "enum": ["true", "false", "undetermined"] },
+    "margin": { "type": "number" },
+    "human_truths": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "enum": ["true", "false", "cannot tell"] },
+      "description": "Three-way, mirroring the verifier's own verdicts. Binary labelling fabricates false ground truth exactly in the borderline region under inspection."
+    },
+    "adjudicated": { "type": "string", "enum": ["true", "false", "undetermined"] },
+    "agree": { "type": "boolean" },
+    "kappa": {
+      "type": "number", "minimum": -1, "maximum": 1,
+      "description": "Inter-annotator agreement where a subset was double-labelled. Without it the 'human' side of the anchor is itself unmeasured."
+    },
+    "auditor_id": { "type": "string" },
+    "audit_status": { "type": "string", "enum": ["unchecked", "checked", "adjudicated"] },
+    "notes": { "type": "string" }
+  }
+}

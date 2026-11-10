@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prismv.dev/schemas/items.schema.json",
+  "title": "PRISM-V TaskItem (layer 2: the question, joined to two truths)",
+  "description": "One JSON line per item. This is the join key between the answer GT and the geometric GT. The per-option geo_truth fields are what turn 'can the verifier decide?' from an accident of phrasing into a designed, stratifiable property.",
+  "type": "object",
+  "required": ["schema_version", "item_id", "scene_id", "task", "question", "split"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "item_id": { "type": "string", "minLength": 1 },
+    "scene_id": { "type": "string", "minLength": 1 },
+    "task": { "type": "string", "enum": ["qa", "localize", "describe"] },
+    "split": {
+      "type": "string",
+      "enum": ["eval", "audit", "dev", "heldout"],
+      "description": "Splits are scene-disjoint by rule: two items from one scene may never land in different splits, since geometrically it is the same room."
+    },
+    "question": { "type": "string", "minLength": 1 },
+    "relation": {
+      "type": "string",
+      "enum": ["left_of", "right_of", "closer_than", "farther_than", "above", "below",
+               "near", "far_from", "between", "occludes", "faces_toward", "same_side"],
+      "description": "From GeoVer's vocabulary, not free text. A relation outside the vocabulary can never be checked, so it must not be labelled silently."
+    },
+    "ref_frame": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["viewer", "allocentric", "unspecified"] },
+        "view": { "type": "integer", "minimum": 0, "description": "Frame index. kind=viewer without a view means GeoVer must abstain, which should be a designed choice and not a parsing accident." }
+      }
+    },
+    "anchor_object_id": { "type": "string" },
+    "options": {
+      "type": "object",
+      "description": "letter -> option. Each option carries its own geometric status.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["text"],
+        "additionalProperties": false,
+        "properties": {
+          "text": { "type": "string" },
+          "object_id": { "type": "string", "description": "Resolved GT object, when the text names one." },
+          "geo_truth_indep": {
+            "type": "string",
+            "enum": ["true", "false", "undetermined"],
+            "description": "Truth under INDEPENDENT geometry (sensor/colmap/human). The only version that may back a claim."
+          },
+          "geo_truth_recon": {
+            "type": "string",
+            "enum": ["true", "false", "undetermined"],
+            "description": "Truth under reconstructed geometry, i.e. what the verifier actually sees. The indep/recon disagreement rate is itself a reported result."
+          },
+          "margin": { "type": "number", "description": "Scale-normalised geometric margin. Near-zero margins justify 'undetermined'." },
+          "margin_band": { "type": "string", "enum": ["clear", "marginal", "near_threshold"], "description": "Audit sampling must cover near_threshold deliberately; uniform random sampling over-reports pseudo-label quality." }
+        }
+      }
+    },
+    "answer": { "type": "string" },
+    "gt_relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["relation", "subject_object_id", "object_object_id", "truth"],
+        "additionalProperties": false,
+        "properties": {
+          "relation": { "type": "string" },
+          "subject_object_id": { "type": "string" },
+          "object_object_id": { "type": "string" },
+          "ref_view": { "type": "integer" },
+          "truth": { "type": "string", "enum": ["true", "false", "undetermined"] },
+          "margin": { "type": "number" }
+        }
+      },
+      "description": "Required for task=describe relation-recall scoring. Geometric precision/contradiction rate work without it."
+    },
+    "geo_unique": {
+      "type": "boolean",
+      "description": "Does the geometric constraint set pin exactly one option? False items are where the reranker can only eliminate, never select. Report both strata."
+    },
+    "gt_confidence": {
+      "type": "number",
+      "minimum": 0, "maximum": 1,
+      "description": "Taken from measured pseudo-label precision for this stratum. The validator rejects hand-authored values that disagree with label_audit."
+    },
+    "audit_status": { "type": "string", "enum": ["unchecked", "checked", "adjudicated"] },
+    "trust_tier": { "type": "string", "enum": ["auto", "audit_required", "discard"] },
+    "attrs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "n_views": { "type": "integer", "minimum": 1 },
+        "occlusion_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+        "entity_spacing": { "type": "number", "minimum": 0 }
+      },
+      "description": "Difficulty parameters, so ablation strata exist in the data rather than being reverse-engineered afterwards."
+    },
+    "unscorable_reason": {
+      "type": "string",
+      "description": "Mandatory when an item cannot be scored for its task (e.g. the correct option names no grounded entity). Makes the denominator honest."
+    }
+  }
+}

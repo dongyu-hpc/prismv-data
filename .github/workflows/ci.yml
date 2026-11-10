@@ -1,0 +1,26 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      # jsonschema is optional at runtime (structural fallback exists), installed as a dev
+      # extra so CI exercises the strict-schema path rather than only the degraded one
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pytest -q
+      # the package must import with the main repo absent; this is the split's whole premise
+      - name: import boundary check
+        run: python -m pytest tests/test_import_boundary.py -q
+      - name: hygiene gate
+        run: python -m pytest tests/test_code_hygiene.py -q

@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prismv.dev/schemas/scene_pack.schema.json",
+  "title": "PRISM-V ScenePack (layer 1: geometric truth)",
+  "description": "One file per scene. Holds geometry only -- no questions. Written once, joined to items.jsonl by scene_id. Objects here are GROUND TRUTH; model-produced entities belong in entities_pred.json and must never be merged into this file.",
+  "type": "object",
+  "required": ["schema_version", "scene_id", "source", "unit", "world_frame", "frames", "objects", "gt_provenance"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "scene_id": { "type": "string", "minLength": 1 },
+    "source": { "type": "string", "description": "Origin dataset or capture batch, verbatim." },
+    "license": { "type": "string", "description": "Redistribution terms. Empty string is allowed but surfaced by the validator, because unlicensed geometry silently blocks release." },
+    "unit": {
+      "type": "string",
+      "enum": ["meter", "centimeter", "millimeter", "scene_normalized"],
+      "description": "Never omit. Mixing units across sources is unrecoverable after relations are computed."
+    },
+    "world_frame": {
+      "type": "object",
+      "required": ["up_axis", "up_source", "handedness"],
+      "additionalProperties": false,
+      "properties": {
+        "up_axis": {
+          "type": "string",
+          "enum": ["+X", "-X", "+Y", "-Y", "+Z", "-Z", "unknown"],
+          "description": "'unknown' is legal: GeoVer estimates gravity from cameras. It must be declared, not assumed."
+        },
+        "up_source": { "type": "string", "enum": ["sensor", "colmap", "estimated", "unknown"] },
+        "handedness": { "type": "string", "enum": ["right", "left"] },
+        "source_is_metric": { "type": "boolean" }
+      }
+    },
+    "frames": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["index", "image", "K", "extrinsic", "convention"],
+        "additionalProperties": false,
+        "properties": {
+          "index": { "type": "integer", "minimum": 0, "description": "0-based. items.jsonl ref_frame.view points here." },
+          "image": { "type": "string", "minLength": 1 },
+          "K": {
+            "type": "array", "minItems": 3, "maxItems": 3,
+            "items": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } }
+          },
+          "extrinsic": {
+            "type": "array", "minItems": 3, "maxItems": 4,
+            "items": { "type": "array", "items": { "type": "number" } }
+          },
+          "convention": {
+            "type": "string",
+            "enum": ["world_to_cam", "cam_to_world"],
+            "description": "MANDATORY. Inferred conventions are the reason whole datasets silently produce inverted left/right verdicts."
+          },
+          "depth_conf": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "mean": { "type": "number", "minimum": 0 },
+              "p05": { "type": "number", "minimum": 0 },
+              "model": { "type": "string" }
+            },
+            "description": "Required when gt_provenance.source is 'auto' and entities are mask-lifted: without per-view confidence the conf_thres ablation is inert."
+          }
+        }
+      }
+    },
+    "objects": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["object_id", "category", "views"],
+        "additionalProperties": false,
+        "properties": {
+          "object_id": { "type": "string", "minLength": 1 },
+          "category": { "type": "string", "minLength": 1 },
+          "canonical_name": { "type": "string" },
+          "aliases": { "type": "array", "items": { "type": "string" }, "description": "Surface forms that option text may use. Drives option-to-entity resolution." },
+          "box3d": {
+            "type": "object",
+            "required": ["center", "size"],
+            "additionalProperties": false,
+            "properties": {
+              "center": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+              "size": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" }, "description": "Full extents, not half-extents." },
+              "quat": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number" }, "description": "Optional; only faces_toward needs orientation." }
+            }
+          },
+          "facing": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+          "center": {
+            "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" },
+            "description": "Centroid shortcut, equivalent to box3d.center. Either this or points is needed for relation truth derivation."
+          },
+          "radius": {
+            "type": "number", "minimum": 0,
+            "description": "RMS extent in scene units. Occlusion and angular-size predicates need an extent; centroid-only objects must not be used to score occludes."
+          },
+          "points": {
+            "type": "array",
+            "items": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } },
+            "description": "Optional GT point set. If point_conf is absent, the conf_thres ablation cannot be run on this scene."
+          },
+          "point_conf": {
+            "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 1 },
+            "description": "Per-point confidence, same length as points. This is the only thing that makes the reconstruction-quality sweep non-inert on injected geometry."
+          },
+          "views": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["frame"],
+              "additionalProperties": false,
+              "properties": {
+                "frame": { "type": "integer", "minimum": 0 },
+                "mask_rle": { "type": "string" },
+                "mask_file": { "type": "string" },
+                "pixels": { "type": "integer", "minimum": 0 },
+                "conf": { "type": "number", "minimum": 0, "maximum": 1 },
+                "occluded": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "gt_provenance": {
+      "type": "object",
+      "required": ["source", "pose_source", "independent_of_verifier_input"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "enum": ["sensor", "sim", "auto", "human", "mixed"] },
+        "pose_source": {
+          "type": "string",
+          "enum": ["sensor", "colmap", "sim", "reconstruction", "none"],
+          "description": "THE CIRCULARITY FIELD. 'reconstruction' means GT geometry was computed from the same kind of estimator GeoVer verifies against, so agreement is inflated by construction."
+        },
+        "independent_of_verifier_input": {
+          "type": "boolean",
+          "description": "Must be false whenever pose_source is 'reconstruction'. Enforced by the validator, not trusted."
+        },
+        "human_verified": { "type": "boolean" },
+        "pipeline_hash": { "type": "string", "description": "detector/segmenter/depth/pose versions. Auto truth changes when the labeler changes; without a hash the dataset is not reproducible." },
+        "labeler_precision": {
+          "type": "object",
+          "description": "Measured pseudo-label precision per relation, from label_audit. Populated by the estimator, never hand-authored.",
+          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}
